@@ -65,8 +65,8 @@ async def root() -> dict[str, str]:
 async def pay(amount: int = 100) -> dict[str, str]:
     """Fake payment endpoint — used to generate traffic for Sentinel to monitor."""
     log.info("Processing payment amount=%s", amount)
-    # On `bug/oom` branch, this allocates 100MB to trigger OOMKilled.
-    # On main, we don't allocate anything.
+    # BUG (bug/oom branch): allocate 100MB to trigger OOMKilled with 32Mi limit
+    _ = b"x" * (100 * 1024 * 1024)
     return {"status": "processed", "amount": str(amount)}
 
 
