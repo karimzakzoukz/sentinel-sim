@@ -34,7 +34,7 @@ service:
 # On `bug/bad-config` branch, the keys here don't match what app/main.py reads.
 config:
   DATABASE_URL: "sqlite:///./sentinel-sim.db"
-  DB_PASSWORD: "change-me-in-prod"
+  db_password: "change-me-in-prod"
   LOG_LEVEL: "INFO"
 
 # Workload annotations — Sentinel reads these.
