@@ -33,7 +33,7 @@ limit as the immediate fix.
 ### Bad image tag (ImagePullBackOff)
 
 **Symptoms**: Pod never starts. `kubectl describe pod` shows
-`Failed to pull image "karimzakzoukz/sentinel-sim:TYPO"`.
+`Failed to pull image "karimzakzouk/sentinel-sim:TYPO"`.
 **Cause**: A typo in the image tag in `values.yaml`.
 **Fix**: Correct the tag to match an existing image on the registry.
 
