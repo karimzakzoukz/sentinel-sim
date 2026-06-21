@@ -1,0 +1,107 @@
+name: CI
+
+# This workflow builds the sentinel-sim Docker image on every push to main
+# and tags it with the commit SHA + latest. Sentinel watches the cluster
+# for incidents on this service — when a bad commit is pushed, the new
+# image is deployed, the service starts crashing, and Sentinel investigates.
+#
+# For the deployment step, you need to provide:
+#   - DOCKERHUB_TOKEN (repo secret) — for pushing the image
+#   - KUBE_CONFIG (repo secret, base64-encoded kubeconfig) — for deploying
+#     to your test cluster. If not set, the workflow only builds + pushes
+#     the image; you deploy manually with `helm upgrade`.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: docker.io/karimzakzoukz/sentinel-sim
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: karimzakzoukz
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          no-cache: true
+
+      - name: Update chart's image tag
+        run: |
+          sed -i "s|tag: \".*\"|tag: \"${{ github.sha }}\"|" chart/values.yaml
+          cat chart/values.yaml | grep tag
+
+      - name: Deploy to cluster (if KUBE_CONFIG is set)
+        if: env.KUBE_CONFIG != ''
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.4
+
+      - name: Install Helm
+        if: env.KUBE_CONFIG != ''
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Configure kubectl
+        if: env.KUBE_CONFIG != ''
+        run: |
+          echo "$KUBE_CONFIG" | base64 -d > kubeconfig
+          chmod 600 kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Helm upgrade
+        if: env.KUBE_CONFIG != ''
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          helm upgrade --install sentinel-sim ./chart \
+            --namespace sim --create-namespace \
+            --wait --timeout 60s
+          kubectl -n sim rollout status deploy/sentinel-sim-sentinel-sim --timeout=120s
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Trigger Sentinel investigation (manual alternative)
+        if: env.KUBE_CONFIG != ''
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          # If the deploy is broken, apply a SentinelIncident CR to trigger
+          # investigation immediately (Sentinel's CRD watcher polls every 10s
+          # anyway, but this forces it now).
+          cat <<EOF | kubectl apply -f -
+          apiVersion: sentinel.io/v1alpha1
+          kind: SentinelIncident
+          metadata:
+            name: sim-incident-$(date +%s)
+            namespace: sentinel
+          spec:
+            service: sentinel-sim
+            namespace: sim
+            reason: "CI deploy of commit ${{ github.sha }} failed health checks"
+            trigger: manual
+            repo: karimzakzoukz/sentinel-sim
+          EOF
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}

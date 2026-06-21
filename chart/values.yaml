@@ -1,0 +1,51 @@
+# Sentinel-Sim chart values
+#
+# This chart deploys the sentinel-sim service AND annotates every Deployment
+# with the sentinel.io/* annotations that Sentinel reads to discover:
+#   - Which GitHub repo to open PRs against (sentinel.io/repo)
+#   - Which team owns the service (sentinel.io/team)
+#   - Where the runbook lives (sentinel.io/runbook)
+# Without these annotations, Sentinel can detect + investigate incidents but
+# cannot autonomously open PRs to fix them.
+
+image:
+  registry: docker.io
+  repository: karimzakzoukz/sentinel-sim
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicas: 2
+
+# Resource limits — Sentinel can propose changes to these in fix proposals.
+# On the `bug/oom` branch, we reduce memory.limit to 32Mi to trigger OOMKilled.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 80
+
+# App config — passed to the container as env vars from a ConfigMap.
+# On `bug/bad-config` branch, the keys here don't match what app/main.py reads.
+config:
+  DATABASE_URL: "sqlite:///./sentinel-sim.db"
+  DB_PASSWORD: "change-me-in-prod"
+  LOG_LEVEL: "INFO"
+
+# Workload annotations — Sentinel reads these.
+# See: https://github.com/karimzakzoukz/sentinel/blob/main/chart/templates/_deployment.tpl
+workloadAnnotations:
+  sentinel.io/repo: "karimzakzoukz/sentinel-sim"
+  sentinel.io/team: "payments"
+  sentinel.io/runbook: "https://github.com/karimzakzoukz/sentinel-sim/blob/main/RUNBOOK.md"
+  sentinel.io/criticality: "medium"
+
+# Pod labels — Sentinel's ingestion layer also reads app.kubernetes.io/name
+podLabels:
+  app.kubernetes.io/name: sentinel-sim
+  app.kubernetes.io/team: payments
