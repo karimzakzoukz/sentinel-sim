@@ -11,7 +11,7 @@
 image:
   registry: docker.io
   repository: karimzakzoukz/sentinel-sim
-  tag: "1.0.0"
+  tag: "1.0.0-TYPO"
   pullPolicy: IfNotPresent
 
 replicas: 2
