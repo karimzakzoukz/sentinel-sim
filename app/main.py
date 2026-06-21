@@ -24,7 +24,7 @@ app = FastAPI(title="sentinel-sim", version="1.0.0")
 
 # ---- Config (read from env, with sensible defaults) ----
 # On `bug/crashloop-typo` branch, this env var name is misspelled → app crashes.
-DATABASE_URL = os.environ.get("DATABASE_URLL", "sqlite:///./sentinel-sim.db")
+DATABASE_URL = os.environ["DATABASE_URLL"]  # BUG: KeyError on startup (env var doesn't exist)
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "default-password")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 
