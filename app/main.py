@@ -25,6 +25,7 @@ app = FastAPI(title="sentinel-sim", version="1.0.0")
 # ---- Config (read from env, with sensible defaults) ----
 # On `bug/crashloop-typo` branch, this env var name is misspelled → app crashes.
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./sentinel-sim.db")
+# Provide a default password to avoid KeyError if ConfigMap omits it.
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "default-password")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 
@@ -45,9 +46,8 @@ async def healthz() -> dict[str, str]:
 @app.get("/readyz")
 async def readyz() -> dict[str, str]:
     """Readiness probe — checks the app can serve traffic."""
-    # On `bug/bad-config` branch, this raises KeyError because DB_PASSWORD
-    # is missing from the env (ConfigMap key mismatch).
-    _ = DB_PASSWORD  # touch the config; KeyError here means not ready
+    # Touch the config; using the default ensures no KeyError.
+    _ = DB_PASSWORD
     return {"status": "ready", "database": DATABASE_URL}
 
 
