@@ -4,6 +4,11 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
+# Ensure required environment variables are set for tests
+os.environ.setdefault("DATABASE_URL", "sqlite:///./sentinel-sim.db")
+os.environ.setdefault("DB_PASSWORD", "default-password")
+os.environ.setdefault("LOG_LEVEL", "INFO")
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.main import app
 
