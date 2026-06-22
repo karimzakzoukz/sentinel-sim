@@ -1,14 +1,10 @@
 """Sentinel-Sim — a tiny FastAPI service used as a Sentinel test target.
 
-This is the CLEAN BASELINE. It works. It should never crash.
-
-Bug variants live on separate branches:
-  - bug/crashloop-typo  — typo in env var name → KeyError on startup
-  - bug/oom             — allocates 100MB while limit is 32Mi → OOMKilled
-  - bug/bad-config      — ConfigMap key mismatch → KeyError on first request
-  - bug/bad-deploy      — bad image tag (chart-side bug, not app-side)
-
-If you're reading this from `main`, the service is healthy.
+BUG variant: bug/runtime-divzero
+  - The /pay endpoint divides by `amount` without checking for zero
+  - Calling /pay?amount=0 triggers ZeroDivisionError → 500 response
+  - The pod stays Running (no CrashLoopBackOff) — this is a RUNTIME bug
+  - Sentinel must read the pod logs (current, not previous) to see the error
 """
 from __future__ import annotations
 
@@ -23,7 +19,6 @@ app = FastAPI(title="sentinel-sim", version="1.0.0")
 
 
 # ---- Config (read from env, with sensible defaults) ----
-# On `bug/crashloop-typo` branch, this env var name is misspelled → app crashes.
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./sentinel-sim.db")
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "default-password")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
@@ -45,9 +40,7 @@ async def healthz() -> dict[str, str]:
 @app.get("/readyz")
 async def readyz() -> dict[str, str]:
     """Readiness probe — checks the app can serve traffic."""
-    # On `bug/bad-config` branch, this raises KeyError because DB_PASSWORD
-    # is missing from the env (ConfigMap key mismatch).
-    _ = DB_PASSWORD  # touch the config; KeyError here means not ready
+    _ = DB_PASSWORD
     return {"status": "ready", "database": DATABASE_URL}
 
 
@@ -63,11 +56,11 @@ async def root() -> dict[str, str]:
 
 @app.get("/pay")
 async def pay(amount: int = 100) -> dict[str, str]:
-    """Fake payment endpoint — used to generate traffic for Sentinel to monitor."""
+    """Fake payment endpoint — BUG: divides by amount, crashes when amount=0."""
     log.info("Processing payment amount=%s", amount)
-    # On `bug/oom` branch, this allocates 100MB to trigger OOMKilled.
-    # On main, we don't allocate anything.
-    return {"status": "processed", "amount": str(amount)}
+    # BUG: no zero check — ZeroDivisionError when amount=0
+    fee = amount / amount
+    return {"status": "processed", "amount": str(amount), "fee": str(fee)}
 
 
 if __name__ == "__main__":
